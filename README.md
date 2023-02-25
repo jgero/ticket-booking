@@ -12,4 +12,14 @@ More information about the internal architecture can be found
 
 Run local Kafka instance with `podman kube play` or Kubernetes
 
+## Testing
+
+`curl --header "Content-Type: application/json"   --request POST --data '{"ticket_visible_ids": ["WED-001","WED-002"]}' http://localhost:8000/order`
+
+## Ideas
+
+- read ticket visible ids and layouts from a SVG. This could double as
+  configuration and graphic to show in the web interface
+- 'spare' tickets: tickets which only can be ordered once a threshold of the
+  total amount of tickets are ordered
 

@@ -1,63 +1,57 @@
-use std::time::Duration;
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    net::SocketAddr,
+};
 
 use log::info;
 
-use rdkafka::config::ClientConfig;
-use rdkafka::message::{Header, OwnedHeaders};
-use rdkafka::producer::{FutureProducer, FutureRecord};
-use rdkafka::util::get_rdkafka_version;
+use crate::model::order::{NewOrder, Order};
+use logging_utils::setup_logger;
 
-use crate::example_utils::setup_logger;
+use warp::{
+    http::Response,
+    reject::{self, Reject},
+    Filter,
+};
 
-mod example_utils;
+mod logging_utils;
+mod model;
 
-async fn produce(brokers: &str, topic_name: &str) {
-    let producer: &FutureProducer = &ClientConfig::new()
-        .set("bootstrap.servers", brokers)
-        .set("message.timeout.ms", "5000")
-        .create()
-        .expect("Producer creation error");
-
-    // This loop is non blocking: all messages will be sent one after the other, without waiting
-    // for the results.
-    let futures = (0..5)
-        .map(|i| async move {
-            // The send operation on the topic returns a future, which will be
-            // completed once the result or failure from Kafka is received.
-            let delivery_status = producer
-                .send(
-                    FutureRecord::to(topic_name)
-                        .payload(&format!("Message {}", i))
-                        .key(&format!("Key {}", i))
-                        .headers(OwnedHeaders::new().insert(Header {
-                            key: "header_key",
-                            value: Some("header_value"),
-                        })),
-                    Duration::from_secs(0),
-                )
-                .await;
-
-            // This will be executed when the result is received.
-            info!("Delivery status for message {} received", i);
-            delivery_status
-        })
-        .collect::<Vec<_>>();
-
-    // This loop will wait until all delivery statuses have been received.
-    for future in futures {
-        info!("Future completed. Result: {:?}", future.await);
-    }
-}
+#[derive(Debug)]
+struct NoSocketAddr;
+impl Reject for NoSocketAddr {}
 
 #[tokio::main]
 async fn main() {
     setup_logger(true, None);
+    info!("starting application");
 
-    let (version_n, version_s) = get_rdkafka_version();
-    info!("rd_kafka_version: 0x{:08x}, {}", version_n, version_s);
+    let new_order = warp::path("order")
+        .and(warp::post())
+        .and(warp::body::content_length_limit(4096))
+        .and(warp::body::json::<NewOrder>())
+        .and(warp::addr::remote())
+        .and_then(|order: NewOrder, addr: Option<SocketAddr>| async move {
+            let addr_hash = addr.map(|v| {
+                let mut s = DefaultHasher::new();
+                v.hash(&mut s);
+                s.finish().to_string()
+            });
+            match addr_hash {
+                None => Err(reject::custom(NoSocketAddr)),
+                Some(issuer) => Ok(Order::new(order, issuer)),
+            }
+        })
+        .map(|order: Order| Response::builder().body(order.to_string()));
 
-    let topic = "my-topic";
-    let brokers = "127.0.0.1:9092";
-
-    produce(brokers, topic).await;
+    let hello = warp::path("hello")
+        .and(warp::path::param())
+        .and(warp::header("user-agent"))
+        .map(|param: String, agent: String| format!("Hello {}, whose agent is {}", param, agent))
+        .with(warp::log("request-log"));
+    warp::serve(new_order.or(hello))
+        .run(([127, 0, 0, 1], 8000))
+        .await;
+    // TODO: how to do querying. possible to query kafka event log?
 }
