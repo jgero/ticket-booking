@@ -6,9 +6,10 @@ use uuid::Uuid;
 
 use super::ticket::Ticket;
 
+#[derive(Serialize, Clone)]
 pub struct Order {
     uuid: Uuid,
-    issuer: String,
+    pub issuer: String,
     tickets: Vec<Ticket>,
 }
 
@@ -43,7 +44,7 @@ impl Display for Order {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub struct NewOrder {
     ticket_visible_ids: Vec<String>,
 }

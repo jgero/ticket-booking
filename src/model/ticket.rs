@@ -1,7 +1,8 @@
+use serde::Serialize;
 use std::fmt::Display;
-
 use uuid::Uuid;
 
+#[derive(Clone)]
 pub enum Status {
     Unchecked,
     Available,
@@ -20,8 +21,10 @@ impl Display for Status {
     }
 }
 
+#[derive(Serialize, Clone)]
 pub struct Ticket {
     visible_id: String,
+    #[serde(skip_serializing)]
     status: Status,
 }
 

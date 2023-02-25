@@ -14,7 +14,8 @@ Run local Kafka instance with `podman kube play` or Kubernetes
 
 ## Testing
 
-`curl --header "Content-Type: application/json"   --request POST --data '{"ticket_visible_ids": ["WED-001","WED-002"]}' http://localhost:8000/order`
+- `curl --header "Content-Type: application/json"   --request POST --data '{"ticket_visible_ids": ["WED-001","WED-002"]}' http://localhost:8000/order`
+- `kafka-console-consumer.sh --bootstrap-server 127.0.0.1:9092 --topic placed-orders --from-beginning`
 
 ## Ideas
 
