@@ -8,7 +8,7 @@ use super::ticket::Ticket;
 
 #[derive(Serialize, Clone)]
 pub struct Order {
-    uuid: Uuid,
+    pub uuid: Uuid,
     pub issuer: String,
     tickets: Vec<Ticket>,
 }
