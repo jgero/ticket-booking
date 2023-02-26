@@ -4,7 +4,9 @@ use std::{
     net::SocketAddr,
 };
 
-use crate::{model::order::{NewOrder, Order}, repository::kafka_event_repository::KafkaEventRepository};
+use log::info;
+
+use crate::{model::order::{NewOrder, Order}, repository::{kafka_event_repository::KafkaEventRepository, interface::EventRepository}};
 
 use super::context::Context;
 
@@ -18,12 +20,15 @@ pub async fn with_issuer(
 ) -> Result<Order, warp::Rejection> {
     let addr_hash = addr.map(|v| {
         let mut s = DefaultHasher::new();
-        v.hash(&mut s);
+        v.ip().hash(&mut s);
         s.finish().to_string()
     });
     match addr_hash {
         None => Err(warp::reject::custom(NoSocketAddr)),
-        Some(issuer) => Ok(Order::new(order, issuer)),
+        Some(issuer) => {
+            info!("issuer is {}", issuer);
+            Ok(Order::new(order, issuer))
+        },
     }
 }
 
@@ -31,9 +36,9 @@ pub async fn with_issuer(
 struct CouldNotPersist;
 impl warp::reject::Reject for CouldNotPersist {}
 
-pub async fn produce_order(order: Order, ctx: Context<KafkaEventRepository>
+pub async fn produce_order<T : EventRepository>(order: Order, ctx: Context<T>
 ) -> Result<Order, warp::Rejection> {
-    match ctx.ev_repo.produce_order(&order).await {
+    match ctx.ev_repo.clone().produce_order(order.clone()).await {
         Err(error) => Err(warp::reject::custom(CouldNotPersist)),
         Ok(_) => Ok(order),
     }

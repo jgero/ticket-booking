@@ -1,6 +1,6 @@
 use warp::Filter;
 
-use crate::repository::{interface::EventRepository, kafka_event_repository::KafkaEventRepository};
+use crate::repository::interface::EventRepository;
 
 #[derive(Clone)]
 pub struct Context<R: EventRepository> {
