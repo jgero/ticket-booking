@@ -1,9 +1,11 @@
-use super::interface::{EvRepoFuture, EventRepository, EventRepositoryError};
-use crate::model::order::Order;
-use log::{debug, error};
+use super::interface::{EvRepoFuture, ProducerRepository, EventRepositoryError, ConsumerRepository};
+use crate::{model::order::Order, rest_api::context::Context};
+use futures::TryStreamExt;
+use log::{debug, error, info};
 use rdkafka::{
+    consumer::{StreamConsumer, Consumer, self},
     producer::{FutureProducer, FutureRecord},
-    ClientConfig,
+    ClientConfig, Message,
 };
 use std::time::Duration;
 use uuid::Uuid;
@@ -11,13 +13,13 @@ use uuid::Uuid;
 const PLACED_ORDERS: &str = "placed-orders";
 
 #[derive(Clone)]
-pub struct KafkaEventRepository {
+pub struct KafkaProducerRepository {
     producer: FutureProducer,
 }
 
-impl KafkaEventRepository {
+impl KafkaProducerRepository {
     pub fn new(brokers: &str) -> Self {
-        KafkaEventRepository {
+        KafkaProducerRepository {
             producer: ClientConfig::new()
                 .set("bootstrap.servers", brokers)
                 .set("message.timeout.ms", "5000")
@@ -27,7 +29,7 @@ impl KafkaEventRepository {
     }
 }
 
-impl EventRepository for KafkaEventRepository {
+impl ProducerRepository for KafkaProducerRepository {
     fn produce_order(self, order: Order) -> EvRepoFuture<Uuid> {
         Box::pin(async move {
             let payload = serde_json::to_string(&order)
@@ -56,4 +58,26 @@ impl EventRepository for KafkaEventRepository {
             }
         })
     }
+}
+
+pub async fn handle_orders(brokers: String) {
+    let consumer: StreamConsumer = ClientConfig::new()
+        .set("group.id", "asdf")
+        .set("bootstrap.servers", brokers.to_owned())
+        .set("enable.partition.eof", "false")
+        .set("session.timeout.ms", "6000")
+        .set("enable.auto.commit", "false")
+        .create()
+        .expect("Consumer creation failed");
+    consumer.subscribe(&[ PLACED_ORDERS ]).expect("consumer creation error");
+    consumer.stream().try_for_each(|borrowed_message| {
+        async move {
+            match borrowed_message.payload_view::<str>() {
+                Some(Ok(payload)) => info!("received placed orders message: {}", payload),
+                Some(Err(err)) => error!("message is no string: {}", err),
+                None => error!("message has no payload")
+            }
+            Ok(())
+        }
+    }).await.expect("could not subscribe to topic");
 }

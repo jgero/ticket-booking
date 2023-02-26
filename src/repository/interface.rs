@@ -1,5 +1,6 @@
 use crate::model::order::Order;
 use futures::Future;
+use rdkafka::consumer::MessageStream;
 use std::{fmt::Display, pin::Pin};
 use uuid::Uuid;
 
@@ -25,7 +26,11 @@ pub type EvRepoFuture<T> = Pin<Box<dyn Future<Output = EvRepoResult<T>> + Send>>
 
 // TODO: using functions with `self` receiver instead of `&self` solves a lot of
 // lifetime problems, but I should investigate if passing clones is bad
-pub trait EventRepository: Sized + Clone {
+pub trait ProducerRepository: Sized + Clone {
     // returns the offset of the produced message
     fn produce_order(self, order: Order) -> EvRepoFuture<Uuid>;
+}
+
+pub trait ConsumerRepository {
+    fn consume_orders(&self) -> MessageStream;
 }

@@ -1,6 +1,7 @@
 use crate::model::order::{NewOrder, Order};
-use crate::repository::interface::EventRepository;
-use crate::repository::kafka_event_repository::KafkaEventRepository;
+use crate::repository::interface::ProducerRepository;
+use crate::repository::kafka_event_repository::KafkaProducerRepository;
+use crate::repository::kafka_event_repository::handle_orders;
 use crate::rest_api::context::with_ctx;
 use crate::rest_api::context::Context;
 use crate::rest_api::mappers::with_issuer;
@@ -19,9 +20,11 @@ async fn main() {
     setup_logger(true, None);
     info!("starting application");
 
-    let ctx: &Context<KafkaEventRepository> = &Context {
-        ev_repo: KafkaEventRepository::new("localhost:9092"),
+    let ctx: &Context<KafkaProducerRepository> = &Context {
+        ev_repo: KafkaProducerRepository::new("localhost:9092"),
     };
+
+    tokio::spawn(handle_orders("localhost:9092".to_string()));
 
     // NOTES TO SELF:
     // `and` and `and_then` reject on error, which means it could be `recover`able
@@ -36,7 +39,7 @@ async fn main() {
         .and_then(with_issuer)
         .and(with_ctx(ctx.clone()))
         .then(
-            |order: Order, ctx: Context<KafkaEventRepository>| async move {
+            |order: Order, ctx: Context<KafkaProducerRepository>| async move {
                 ctx.ev_repo.clone().produce_order(order.clone()).await
             },
         )
