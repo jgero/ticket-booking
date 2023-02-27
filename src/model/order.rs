@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use super::ticket::Ticket;
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Order {
     pub uuid: Uuid,
     pub issuer: String,
@@ -26,6 +26,9 @@ impl Order {
                 .map(|v| Ticket::from(v.to_owned()))
                 .collect(),
         }
+    }
+    pub fn new_dummy() -> Self {
+        Order { uuid: Uuid::new_v4(), issuer: "1234".to_string(), tickets: vec![] }
     }
 }
 

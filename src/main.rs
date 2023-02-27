@@ -1,7 +1,9 @@
+use std::sync::Arc;
+
 use crate::model::order::{NewOrder, Order};
-use crate::repository::interface::ProducerRepository;
+use crate::repository::interface::{ConsumerRepository, ProducerRepository};
+use crate::repository::kafka_event_repository::KafkaConsumer;
 use crate::repository::kafka_event_repository::KafkaProducerRepository;
-use crate::repository::kafka_event_repository::handle_orders;
 use crate::rest_api::context::with_ctx;
 use crate::rest_api::context::Context;
 use crate::rest_api::mappers::with_issuer;
@@ -24,7 +26,17 @@ async fn main() {
         ev_repo: KafkaProducerRepository::new("localhost:9092"),
     };
 
-    tokio::spawn(handle_orders("localhost:9092".to_string()));
+    tokio::spawn(async {
+        let consumer = KafkaConsumer::new("localhost:9092".to_string());
+        consumer
+            .consume_orders(Box::new(|order: Order| {
+                info!(
+                    "yay, I consumed order {}",
+                    serde_json::to_string(&order).unwrap()
+                )
+            }))
+            .await;
+    });
 
     // NOTES TO SELF:
     // `and` and `and_then` reject on error, which means it could be `recover`able

@@ -1,6 +1,5 @@
 use crate::model::order::Order;
-use futures::Future;
-use rdkafka::consumer::MessageStream;
+use futures::{Future, Stream};
 use std::{fmt::Display, pin::Pin};
 use uuid::Uuid;
 
@@ -31,6 +30,8 @@ pub trait ProducerRepository: Sized + Clone {
     fn produce_order(self, order: Order) -> EvRepoFuture<Uuid>;
 }
 
+pub type MessageCallback<T> = Box<dyn Fn(T) + Send + Sync>;
+
 pub trait ConsumerRepository {
-    fn consume_orders(&self) -> MessageStream;
+    fn consume_orders(self, callback: MessageCallback<Order>);
 }

@@ -1,9 +1,9 @@
-use super::interface::{EvRepoFuture, ProducerRepository, EventRepositoryError, ConsumerRepository};
-use crate::{model::order::Order, rest_api::context::Context};
-use futures::TryStreamExt;
-use log::{debug, error, info};
+use super::interface::{EvRepoFuture, EventRepositoryError, ProducerRepository};
+use crate::model::order::Order;
+use futures::StreamExt;
+use log::{debug, error};
 use rdkafka::{
-    consumer::{StreamConsumer, Consumer, self},
+    consumer::{Consumer, StreamConsumer},
     producer::{FutureProducer, FutureRecord},
     ClientConfig, Message,
 };
@@ -60,24 +60,52 @@ impl ProducerRepository for KafkaProducerRepository {
     }
 }
 
-pub async fn handle_orders(brokers: String) {
-    let consumer: StreamConsumer = ClientConfig::new()
-        .set("group.id", "asdf")
-        .set("bootstrap.servers", brokers.to_owned())
-        .set("enable.partition.eof", "false")
-        .set("session.timeout.ms", "6000")
-        .set("enable.auto.commit", "false")
-        .create()
-        .expect("Consumer creation failed");
-    consumer.subscribe(&[ PLACED_ORDERS ]).expect("consumer creation error");
-    consumer.stream().try_for_each(|borrowed_message| {
-        async move {
-            match borrowed_message.payload_view::<str>() {
-                Some(Ok(payload)) => info!("received placed orders message: {}", payload),
-                Some(Err(err)) => error!("message is no string: {}", err),
-                None => error!("message has no payload")
-            }
-            Ok(())
+pub struct KafkaConsumer {
+    consumer: StreamConsumer,
+}
+
+impl KafkaConsumer {
+    pub fn new(brokers: String) -> Self {
+        KafkaConsumer {
+            consumer: ClientConfig::new()
+                .set("group.id", "asdf")
+                .set("bootstrap.servers", brokers.to_owned())
+                .set("enable.partition.eof", "false")
+                .set("session.timeout.ms", "6000")
+                .set("enable.auto.commit", "false")
+                .create()
+                .expect("Consumer creation failed"),
         }
-    }).await.expect("could not subscribe to topic");
+    }
+    pub async fn consume_orders(self, callback: Box<dyn Fn(Order) + Send + Sync>) {
+        self.consumer
+            .subscribe(&[PLACED_ORDERS])
+            .expect("consumer subscription error");
+        self.consumer
+            .stream()
+            .map(|maybe_message| {
+                maybe_message
+                    .map_err(|err| EventRepositoryError::from(err.to_string()))
+                    .and_then(|message| match message.payload_view::<str>() {
+                        None => Err(EventRepositoryError::from(
+                            "message has no payload".to_string(),
+                        )),
+                        Some(maybe_payload) => match maybe_payload {
+                            Ok(payload) => Ok(payload.to_owned()),
+                            Err(error) => Err(EventRepositoryError::from(error.to_string())),
+                        },
+                    })
+                    .and_then(|payload_str| {
+                        serde_json::from_str::<Order>(&payload_str)
+                            .map_err(|err| EventRepositoryError::from(err.to_string()))
+                    })
+            })
+            .for_each(|maybe_order| async {
+                match maybe_order {
+                    Ok(order) => callback(order),
+                    Err(error) => error!("coud not consume order: {}", error.to_string()),
+                }
+            })
+            .await;
+    }
 }
