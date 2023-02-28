@@ -30,8 +30,12 @@ pub trait ProducerRepository: Sized + Clone {
     fn produce_order(self, order: Order) -> EvRepoFuture<Uuid>;
 }
 
-pub type MessageCallback<T> = Box<dyn Fn(T) + Send + Sync>;
+pub struct Consumer<T> where T : ConsumerRepository {
+    repo: T
+}
+
+pub type MessageStream<T> = Box<dyn Stream<Item = Result<T, EventRepositoryError>>>;
 
 pub trait ConsumerRepository {
-    fn consume_orders(self, callback: MessageCallback<Order>);
+    fn consume_orders(self) -> MessageStream<Order>;
 }

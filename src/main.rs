@@ -1,9 +1,7 @@
-use std::sync::Arc;
-
 use crate::model::order::{NewOrder, Order};
-use crate::repository::interface::{ConsumerRepository, ProducerRepository};
-use crate::repository::kafka_event_repository::KafkaConsumer;
+use crate::repository::interface::ProducerRepository;
 use crate::repository::kafka_event_repository::KafkaProducerRepository;
+use crate::repository::message::Topic;
 use crate::rest_api::context::with_ctx;
 use crate::rest_api::context::Context;
 use crate::rest_api::mappers::with_issuer;
@@ -27,14 +25,16 @@ async fn main() {
     };
 
     tokio::spawn(async {
-        let consumer = KafkaConsumer::new("localhost:9092".to_string());
-        consumer
-            .consume_orders(Box::new(|order: Order| {
-                info!(
-                    "yay, I consumed order {}",
-                    serde_json::to_string(&order).unwrap()
-                )
-            }))
+        Topic::PlacedOrders
+            .consume(
+                "localhost:9092".to_string(),
+                Box::new(|order: Order| {
+                    info!(
+                        "yay, I consumed order {}",
+                        serde_json::to_string(&order).unwrap()
+                    )
+                }),
+            )
             .await;
     });
 
