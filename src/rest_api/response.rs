@@ -2,7 +2,7 @@ use serde::Serialize;
 use uuid::Uuid;
 use warp::hyper::StatusCode;
 
-use crate::repository::interface::EvRepoResult;
+use crate::{repository::message::EvRepoResult, model::order::Order};
 
 #[derive(Serialize)]
 #[serde(untagged)]
@@ -21,10 +21,10 @@ impl warp::Reply for NewOrderResponse {
     }
 }
 
-impl From<EvRepoResult<Uuid>> for NewOrderResponse {
-    fn from(value: EvRepoResult<Uuid>) -> Self {
+impl From<EvRepoResult<Order>> for NewOrderResponse {
+    fn from(value: EvRepoResult<Order>) -> Self {
         match value {
-            Ok(uuid) => Self::Success { uuid },
+            Ok(order) => Self::Success { uuid: order.uuid },
             Err(err) => Self::Failure {
                 error: err.to_string(),
             },

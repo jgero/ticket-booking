@@ -1,13 +1,11 @@
 use crate::model::order::{NewOrder, Order};
-use crate::repository::interface::ProducerRepository;
-use crate::repository::kafka_event_repository::KafkaProducerRepository;
-use crate::repository::message::Topic;
 use crate::rest_api::context::with_ctx;
 use crate::rest_api::context::Context;
 use crate::rest_api::mappers::with_issuer;
 use crate::rest_api::response::NewOrderResponse;
 use log::info;
 use logging_utils::setup_logger;
+use repository::message::{new_consumer, new_producer, Topic};
 use warp::Filter;
 
 mod logging_utils;
@@ -20,14 +18,14 @@ async fn main() {
     setup_logger(true, None);
     info!("starting application");
 
-    let ctx: &Context<KafkaProducerRepository> = &Context {
-        ev_repo: KafkaProducerRepository::new("localhost:9092"),
+    let ctx: &Context = &Context {
+        message_producer: new_producer("localhost:9092"),
     };
 
     tokio::spawn(async {
         Topic::PlacedOrders
             .consume(
-                "localhost:9092".to_string(),
+                new_consumer("localhost:9092"),
                 Box::new(|order: Order| {
                     info!(
                         "yay, I consumed order {}",
@@ -50,11 +48,11 @@ async fn main() {
         .and(warp::addr::remote())
         .and_then(with_issuer)
         .and(with_ctx(ctx.clone()))
-        .then(
-            |order: Order, ctx: Context<KafkaProducerRepository>| async move {
-                ctx.ev_repo.clone().produce_order(order.clone()).await
-            },
-        )
+        .then(|order: Order, ctx: Context| async move {
+            Topic::PlacedOrders
+                .produce(ctx.message_producer.clone(), order.clone())
+                .await
+        })
         .map(NewOrderResponse::from);
 
     let hello = warp::path("hello")

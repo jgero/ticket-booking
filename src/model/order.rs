@@ -27,9 +27,6 @@ impl Order {
                 .collect(),
         }
     }
-    pub fn new_dummy() -> Self {
-        Order { uuid: Uuid::new_v4(), issuer: "1234".to_string(), tickets: vec![] }
-    }
 }
 
 impl Display for Order {
