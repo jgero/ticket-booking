@@ -40,7 +40,31 @@ spec:
     resources: {}
     securityContext:
       runAsNonRoot: true
+  - args:
+    - postgres
+    env:
+    - name: POSTGRES_PASSWORD
+      value: postgres
+    image: docker.io/library/postgres:latest
+    name: kafkadb
+    ports:
+    - containerPort: 5432
+      hostPort: 5432
+    resources: {}
+    volumeMounts:
+    - mountPath: /docker-entrypoint-initdb.d
+      name: home-jgero-git-ticket-booking-db_init-host-0
+    - mountPath: /var/lib/postgresql/data
+      name: 2b791368538710be6c537387a8ddc16ec345845a5c86b1c22606b76623034973-pvc
   hostname: kafkapp
   restartPolicy: Never
+  volumes:
+  - hostPath:
+      path: /home/jgero/git/ticket-booking/db_init
+      type: Directory
+    name: home-jgero-git-ticket-booking-db_init-host-0
+  - name: 2b791368538710be6c537387a8ddc16ec345845a5c86b1c22606b76623034973-pvc
+    persistentVolumeClaim:
+      claimName: 2b791368538710be6c537387a8ddc16ec345845a5c86b1c22606b76623034973
 status: {}
 
