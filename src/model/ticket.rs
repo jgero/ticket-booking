@@ -3,7 +3,7 @@ use std::fmt::Display;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Ticket {
-    visible_id: String,
+    pub visible_id: String,
 }
 
 impl From<String> for Ticket {

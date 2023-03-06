@@ -10,7 +10,7 @@ use super::ticket::Ticket;
 pub struct Order {
     pub uuid: Uuid,
     pub issuer: String,
-    tickets: Vec<Ticket>,
+    pub tickets: Vec<Ticket>,
 }
 
 impl Order {

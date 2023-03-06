@@ -1,3 +1,4 @@
+use crate::booking::handle_placed_orders;
 use crate::model::order::{NewOrder, Order};
 use crate::rest_api::context::with_ctx;
 use crate::rest_api::context::Context;
@@ -5,9 +6,11 @@ use crate::rest_api::mappers::with_issuer;
 use crate::rest_api::response::NewOrderResponse;
 use log::info;
 use logging_utils::setup_logger;
-use repository::message::{new_consumer, new_producer, Topic};
+use repository::message::{new_producer, Topic};
+use sqlx::postgres::PgPoolOptions;
 use warp::Filter;
 
+mod booking;
 mod logging_utils;
 mod model;
 mod repository;
@@ -22,19 +25,11 @@ async fn main() {
         message_producer: new_producer("localhost:9092"),
     };
 
-    tokio::spawn(async {
-        Topic::PlacedOrders
-            .consume(
-                new_consumer("localhost:9092"),
-                Box::new(|order: Order| {
-                    info!(
-                        "yay, I consumed order {}",
-                        serde_json::to_string(&order).unwrap()
-                    )
-                }),
-            )
-            .await;
-    });
+    let pool = PgPoolOptions::new()
+        .connect("postgres://postgres:postgres@localhost:5432")
+        .await
+        .unwrap();
+    tokio::spawn(handle_placed_orders("localhost:9092", pool));
 
     // NOTES TO SELF:
     // `and` and `and_then` reject on error, which means it could be `recover`able
